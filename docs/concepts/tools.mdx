@@ -24,6 +24,12 @@ In AG-UI, tools are functions that agents can call to:
 Tools bridge the gap between AI reasoning and real-world actions, allowing
 agents to accomplish tasks that would be impossible through conversation alone.
 
+<Note>
+  **新功能说明 | New Feature**: AG-UI 现在支持多种工具定义模式，包括前端定义、后端定义和服务端作为客户端的模式。查看 [工具定义模式指南](/concepts/tool-definition-patterns) 了解详细信息。
+  
+  AG-UI now supports multiple tool definition patterns including frontend-defined, backend-defined, and server-as-client patterns. See the [Tool Definition Patterns Guide](/concepts/tool-definition-patterns) for details.
+</Note>
+
 ## Tool Structure
 
 Tools follow a consistent structure that defines their name, purpose, and
@@ -350,7 +356,19 @@ When designing tools for AG-UI:
 
 Tools in AG-UI bridge the gap between AI reasoning and real-world actions,
 enabling sophisticated workflows that combine the strengths of AI and human
-intelligence. By defining tools in the frontend and passing them to agents,
+intelligence. 
+
+## Tool Definition Patterns | 工具定义模式
+
+AG-UI supports multiple patterns for tool definition:
+
+1. **Frontend-defined tools**: Tools defined in frontend applications and passed to backend agents (standard pattern)
+2. **Backend-defined tools**: Tools defined and executed within backend agents
+3. **Server-as-client**: Backend services acting as clients to provide tools to other agents
+
+For a comprehensive guide on these patterns, see [Tool Definition Patterns](/concepts/tool-definition-patterns).
+
+By defining tools in the frontend and passing them to agents,
 developers can create interactive experiences where AI and humans collaborate
 efficiently.
 
