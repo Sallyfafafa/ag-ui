@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "ag-ui-ag2"
+version = "0.1.0"
+description = "Implementation of the AG-UI protocol for AG2"
+authors = ["AG-UI Contributors <hello@ag-ui.com>"]
+readme = "README.md"
+exclude = [
+    "ag_ui_ag2/dojo.py",
+    "ag_ui_ag2/examples/**",
+]
+
+[tool.poetry.dependencies]
+python = "<3.14,>=3.10"
+ag-ui-protocol = ">=0.1.5"
+fastapi = "^0.115.12"
+uvicorn = "^0.34.3"
+ag2 = "^0.4.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+dev = "ag_ui_ag2.dojo:main"
