@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "ag-ui-autogen"
+version = "0.1.0"
+description = "Implementation of the AG-UI protocol for AutoGen"
+authors = ["AG-UI Contributors <hello@ag-ui.com>"]
+readme = "README.md"
+exclude = [
+    "ag_ui_autogen/dojo.py",
+    "ag_ui_autogen/examples/**",
+]
+
+[tool.poetry.dependencies]
+python = "<3.14,>=3.10"
+ag-ui-protocol = ">=0.1.5"
+fastapi = "^0.115.12"
+uvicorn = "^0.34.3"
+pyautogen = "^0.2.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+dev = "ag_ui_autogen.dojo:main"
