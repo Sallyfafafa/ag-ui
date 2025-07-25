@@ -1,0 +1,216 @@
+---
+title: "Server-as-Client Tool Examples | 服务端作为客户端工具示例"
+description: "Practical examples of backend services acting as clients to provide tools to other agents | 后端服务作为客户端为其他代理提供工具的实际示例"
+---
+
+# Server-as-Client Tool Examples | 服务端作为客户端工具示例
+
+本文档提供了后端服务作为客户端来定义和提供工具的实际代码示例。
+
+This document provides practical code examples of backend services acting as clients to define and provide tools.
+
+## 示例1：通知服务工具提供者 | Example 1: Notification Service Tool Provider
+
+### TypeScript 实现 | TypeScript Implementation
+
+```typescript
+// notification-tool-provider.ts
+import { AgUiClient, Tool, ToolHandler } from "@ag-ui/client";
+
+export interface NotificationConfig {
+  agentEndpoint: string;
+  serviceId: string;
+}
+
+export class NotificationToolProvider {
+  private client: AgUiClient;
+  private serviceId: string;
+
+  constructor(config: NotificationConfig) {
+    this.client = new AgUiClient(config.agentEndpoint);
+    this.serviceId = config.serviceId;
+  }
+
+  /**
+   * 向代理注册通知相关工具
+   * Register notification-related tools with the agent
+   */
+  async initialize(): Promise<void> {
+    const tools: Tool[] = [
+      {
+        name: "sendEmailNotification",
+        description: "发送邮件通知 | Send email notification",
+        parameters: {
+          type: "object",
+          properties: {
+            to: {
+              type: "array",
+              items: { type: "string" },
+              description: "收件人邮箱地址列表 | List of recipient email addresses"
+            },
+            subject: {
+              type: "string",
+              description: "邮件主题 | Email subject"
+            },
+            body: {
+              type: "string",
+              description: "邮件内容 | Email body"
+            },
+            priority: {
+              type: "string",
+              enum: ["low", "normal", "high", "urgent"],
+              default: "normal",
+              description: "邮件优先级 | Email priority"
+            }
+          },
+          required: ["to", "subject", "body"]
+        }
+      },
+      {
+        name: "sendSMSNotification", 
+        description: "发送短信通知 | Send SMS notification",
+        parameters: {
+          type: "object",
+          properties: {
+            phoneNumbers: {
+              type: "array",
+              items: { type: "string" },
+              description: "手机号码列表 | List of phone numbers"
+            },
+            message: {
+              type: "string",
+              maxLength: 160,
+              description: "短信内容 | SMS message content"
+            },
+            urgent: {
+              type: "boolean",
+              default: false,
+              description: "是否紧急 | Whether urgent"
+            }
+          },
+          required: ["phoneNumbers", "message"]
+        }
+      }
+    ];
+
+    const handler: ToolHandler = async (toolName: string, args: any) => {
+      return await this.handleToolCall(toolName, args);
+    };
+
+    await this.client.registerTools(tools, handler);
+    console.log(`通知工具提供者已注册 | Notification tool provider registered: ${this.serviceId}`);
+  }
+
+  private async handleToolCall(toolName: string, args: any): Promise<any> {
+    try {
+      switch (toolName) {
+        case "sendEmailNotification":
+          return await this.sendEmailNotification(args);
+        case "sendSMSNotification":
+          return await this.sendSMSNotification(args);
+        default:
+          throw new Error(`未知工具 | Unknown tool: ${toolName}`);
+      }
+    } catch (error) {
+      console.error(`工具调用失败 | Tool call failed:`, error);
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  private async sendEmailNotification(args: {
+    to: string[];
+    subject: string;
+    body: string;
+    priority?: string;
+  }): Promise<any> {
+    // 模拟邮件发送 | Simulate email sending
+    console.log(`发送邮件 | Sending email:`, args);
+    
+    const messageId = `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    return {
+      success: true,
+      messageId,
+      recipients: args.to,
+      subject: args.subject,
+      priority: args.priority || "normal",
+      sentAt: new Date().toISOString(),
+      message: `邮件已发送给 ${args.to.length} 个收件人 | Email sent to ${args.to.length} recipients`
+    };
+  }
+
+  private async sendSMSNotification(args: {
+    phoneNumbers: string[];
+    message: string;
+    urgent?: boolean;
+  }): Promise<any> {
+    // 模拟短信发送 | Simulate SMS sending
+    console.log(`发送短信 | Sending SMS:`, args);
+
+    const messageId = `sms_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    return {
+      success: true,
+      messageId,
+      recipients: args.phoneNumbers,
+      message: args.message,
+      urgent: args.urgent || false,
+      sentAt: new Date().toISOString(),
+      cost: args.phoneNumbers.length * 0.05, // $0.05 per SMS
+      message_status: `短信已发送给 ${args.phoneNumbers.length} 个号码 | SMS sent to ${args.phoneNumbers.length} numbers`
+    };
+  }
+
+  async shutdown(): Promise<void> {
+    await this.client.disconnect();
+    console.log(`通知工具提供者已关闭 | Notification tool provider shut down: ${this.serviceId}`);
+  }
+}
+
+// 使用示例 | Usage example
+async function startNotificationProvider() {
+  const provider = new NotificationToolProvider({
+    agentEndpoint: "http://localhost:8000",
+    serviceId: "notification-service-1"
+  });
+
+  try {
+    await provider.initialize();
+    
+    // 保持服务运行 | Keep service running
+    process.on('SIGINT', async () => {
+      console.log('收到关闭信号 | Received shutdown signal');
+      await provider.shutdown();
+      process.exit(0);
+    });
+
+    console.log('通知服务已启动 | Notification service started');
+  } catch (error) {
+    console.error('启动失败 | Failed to start:', error);
+  }
+}
+
+// 如果直接运行此文件 | If running this file directly
+if (require.main === module) {
+  startNotificationProvider();
+}
+```
+
+## 总结 | Summary
+
+这个示例展示了服务端作为客户端的工具定义模式的核心概念：
+
+This example demonstrates the core concepts of the server-as-client tool definition pattern:
+
+1. **服务解耦 | Service Decoupling**: 工具提供者是独立的服务 | Tool providers are independent services
+2. **动态注册 | Dynamic Registration**: 工具可以在运行时注册 | Tools can be registered at runtime
+3. **专业化 | Specialization**: 服务专注于特定领域的工具 | Services focus on domain-specific tools
+4. **可扩展性 | Scalability**: 易于添加新的工具提供者 | Easy to add new tool providers
+
+这种模式特别适合微服务架构，可以实现高度模块化的 AI 代理生态系统。
+
+This pattern is particularly suitable for microservice architectures, enabling highly modular AI agent ecosystems.
