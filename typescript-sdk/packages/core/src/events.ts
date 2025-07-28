@@ -14,6 +14,8 @@ export enum EventType {
   TOOL_CALL_END = "TOOL_CALL_END",
   TOOL_CALL_CHUNK = "TOOL_CALL_CHUNK",
   TOOL_CALL_RESULT = "TOOL_CALL_RESULT",
+  PARALLEL_TOOL_CALLS_START = "PARALLEL_TOOL_CALLS_START",
+  PARALLEL_TOOL_CALLS_END = "PARALLEL_TOOL_CALLS_END",
   THINKING_START = "THINKING_START",
   THINKING_END = "THINKING_END",
   STATE_SNAPSHOT = "STATE_SNAPSHOT",
@@ -107,6 +109,18 @@ export const ToolCallChunkEventSchema = BaseEventSchema.extend({
   delta: z.string().optional(),
 });
 
+export const ParallelToolCallsStartEventSchema = BaseEventSchema.extend({
+  type: z.literal(EventType.PARALLEL_TOOL_CALLS_START),
+  parallelId: z.string(),
+  toolCallIds: z.array(z.string()),
+  parentMessageId: z.string().optional(),
+});
+
+export const ParallelToolCallsEndEventSchema = BaseEventSchema.extend({
+  type: z.literal(EventType.PARALLEL_TOOL_CALLS_END),
+  parallelId: z.string(),
+});
+
 export const ThinkingStartEventSchema = BaseEventSchema.extend({
   type: z.literal(EventType.THINKING_START),
   title: z.string().optional(),
@@ -185,6 +199,10 @@ export const EventSchemas = z.discriminatedUnion("type", [
   ToolCallEndEventSchema,
   ToolCallChunkEventSchema,
   ToolCallResultEventSchema,
+  ParallelToolCallsStartEventSchema,
+  ParallelToolCallsEndEventSchema,
+  ThinkingStartEventSchema,
+  ThinkingEndEventSchema,
   StateSnapshotEventSchema,
   StateDeltaEventSchema,
   MessagesSnapshotEventSchema,
@@ -210,6 +228,8 @@ export type ToolCallArgsEvent = z.infer<typeof ToolCallArgsEventSchema>;
 export type ToolCallEndEvent = z.infer<typeof ToolCallEndEventSchema>;
 export type ToolCallChunkEvent = z.infer<typeof ToolCallChunkEventSchema>;
 export type ToolCallResultEvent = z.infer<typeof ToolCallResultEventSchema>;
+export type ParallelToolCallsStartEvent = z.infer<typeof ParallelToolCallsStartEventSchema>;
+export type ParallelToolCallsEndEvent = z.infer<typeof ParallelToolCallsEndEventSchema>;
 export type ThinkingStartEvent = z.infer<typeof ThinkingStartEventSchema>;
 export type ThinkingEndEvent = z.infer<typeof ThinkingEndEventSchema>;
 export type StateSnapshotEvent = z.infer<typeof StateSnapshotEventSchema>;

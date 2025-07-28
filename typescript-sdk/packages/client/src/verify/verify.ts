@@ -7,7 +7,8 @@ export const verifyEvents =
   (source$: Observable<BaseEvent>): Observable<BaseEvent> => {
     // Declare variables in closure to maintain state across events
     let activeMessageId: string | undefined;
-    let activeToolCallId: string | undefined;
+    let activeToolCallIds: Set<string> = new Set(); // Track multiple tool calls
+    let activeParallelId: string | undefined;
     let runFinished = false;
     let runError = false; // New flag to track if RUN_ERROR has been sent
     // New flags to track first/last event requirements
@@ -67,30 +68,36 @@ export const verifyEvents =
         }
 
         // Forbid lifecycle events and text message events inside a tool call
-        if (activeToolCallId !== undefined) {
+        if (activeToolCallIds.size > 0 || activeParallelId !== undefined) {
           // Define allowed event types inside a tool call
           const allowedEventTypes = [
             EventType.TOOL_CALL_ARGS,
             EventType.TOOL_CALL_END,
+            EventType.TOOL_CALL_START, // Allow multiple tool calls within parallel group
+            EventType.PARALLEL_TOOL_CALLS_END,
             EventType.RAW,
           ];
 
           // If the event type is not in the allowed list, throw an error
           if (!allowedEventTypes.includes(eventType)) {
-            // Special handling for nested tool calls for better error message
-            if (eventType === EventType.TOOL_CALL_START) {
+            // Special handling for nested tool calls in non-parallel mode for better error message
+            if (eventType === EventType.TOOL_CALL_START && activeParallelId === undefined) {
               return throwError(
                 () =>
                   new AGUIError(
-                    `Cannot send 'TOOL_CALL_START' event: A tool call is already in progress. Complete it with 'TOOL_CALL_END' first.`,
+                    `Cannot send 'TOOL_CALL_START' event: A tool call is already in progress. Complete it with 'TOOL_CALL_END' first, or start a parallel group with 'PARALLEL_TOOL_CALLS_START'.`,
                   ),
               );
             }
 
+            const contextMessage = activeParallelId !== undefined 
+              ? `Send 'PARALLEL_TOOL_CALLS_END' first.`
+              : `Send 'TOOL_CALL_END' first.`;
+
             return throwError(
               () =>
                 new AGUIError(
-                  `Cannot send event type '${eventType}' after 'TOOL_CALL_START': Send 'TOOL_CALL_END' first.`,
+                  `Cannot send event type '${eventType}' after 'TOOL_CALL_START': ${contextMessage}`,
                 ),
             );
           }
@@ -180,36 +187,41 @@ export const verifyEvents =
 
           // Tool call flow
           case EventType.TOOL_CALL_START: {
-            // Can't start a tool call if one is already in progress
-            if (activeToolCallId !== undefined) {
+            const toolCallId = (event as any).toolCallId;
+            
+            // Can't start a tool call if one is already in progress (unless in parallel mode)
+            if (activeToolCallIds.has(toolCallId)) {
               return throwError(
                 () =>
                   new AGUIError(
-                    `Cannot send 'TOOL_CALL_START' event: A tool call is already in progress. Complete it with 'TOOL_CALL_END' first.`,
+                    `Cannot send 'TOOL_CALL_START' event: Tool call '${toolCallId}' is already in progress.`,
                   ),
               );
             }
 
-            activeToolCallId = (event as any).toolCallId;
+            // If not in parallel mode and there's already an active tool call, error
+            if (activeParallelId === undefined && activeToolCallIds.size > 0) {
+              return throwError(
+                () =>
+                  new AGUIError(
+                    `Cannot send 'TOOL_CALL_START' event: A tool call is already in progress. Complete it with 'TOOL_CALL_END' first, or start a parallel group with 'PARALLEL_TOOL_CALLS_START'.`,
+                  ),
+              );
+            }
+
+            activeToolCallIds.add(toolCallId);
             return of(event);
           }
 
           case EventType.TOOL_CALL_ARGS: {
+            const toolCallId = (event as any).toolCallId;
+            
             // Must be in a tool call and IDs must match
-            if (activeToolCallId === undefined) {
+            if (!activeToolCallIds.has(toolCallId)) {
               return throwError(
                 () =>
                   new AGUIError(
-                    `Cannot send 'TOOL_CALL_ARGS' event: No active tool call found. Start a tool call with 'TOOL_CALL_START' first.`,
-                  ),
-              );
-            }
-
-            if ((event as any).toolCallId !== activeToolCallId) {
-              return throwError(
-                () =>
-                  new AGUIError(
-                    `Cannot send 'TOOL_CALL_ARGS' event: Tool call ID mismatch. The ID '${(event as any).toolCallId}' doesn't match the active tool call ID '${activeToolCallId}'.`,
+                    `Cannot send 'TOOL_CALL_ARGS' event: Tool call '${toolCallId}' is not active. Start a tool call with 'TOOL_CALL_START' first.`,
                   ),
               );
             }
@@ -218,27 +230,78 @@ export const verifyEvents =
           }
 
           case EventType.TOOL_CALL_END: {
+            const toolCallId = (event as any).toolCallId;
+            
             // Must be in a tool call and IDs must match
-            if (activeToolCallId === undefined) {
+            if (!activeToolCallIds.has(toolCallId)) {
               return throwError(
                 () =>
                   new AGUIError(
-                    `Cannot send 'TOOL_CALL_END' event: No active tool call found. A 'TOOL_CALL_START' event must be sent first.`,
+                    `Cannot send 'TOOL_CALL_END' event: Tool call '${toolCallId}' is not active. A 'TOOL_CALL_START' event must be sent first.`,
                   ),
               );
             }
 
-            if ((event as any).toolCallId !== activeToolCallId) {
+            // Remove tool call from active set
+            activeToolCallIds.delete(toolCallId);
+            return of(event);
+          }
+
+          // Parallel tool call flow
+          case EventType.PARALLEL_TOOL_CALLS_START: {
+            const parallelId = (event as any).parallelId;
+            const toolCallIds = (event as any).toolCallIds || [];
+            
+            // Can't start parallel tool calls if any tool calls are already active
+            if (activeToolCallIds.size > 0) {
               return throwError(
                 () =>
                   new AGUIError(
-                    `Cannot send 'TOOL_CALL_END' event: Tool call ID mismatch. The ID '${(event as any).toolCallId}' doesn't match the active tool call ID '${activeToolCallId}'.`,
+                    `Cannot send 'PARALLEL_TOOL_CALLS_START' event: Tool calls are already in progress. Complete them first.`,
                   ),
               );
             }
 
-            // Reset tool call state
-            activeToolCallId = undefined;
+            // Can't start parallel tool calls if already in parallel mode
+            if (activeParallelId !== undefined) {
+              return throwError(
+                () =>
+                  new AGUIError(
+                    `Cannot send 'PARALLEL_TOOL_CALLS_START' event: Parallel tool calls '${activeParallelId}' are already in progress.`,
+                  ),
+              );
+            }
+
+            activeParallelId = parallelId;
+            return of(event);
+          }
+
+          case EventType.PARALLEL_TOOL_CALLS_END: {
+            const parallelId = (event as any).parallelId;
+            
+            // Must be in parallel mode and IDs must match
+            if (activeParallelId !== parallelId) {
+              return throwError(
+                () =>
+                  new AGUIError(
+                    `Cannot send 'PARALLEL_TOOL_CALLS_END' event: Parallel ID mismatch or no parallel tool calls active. Expected '${activeParallelId}', got '${parallelId}'.`,
+                  ),
+              );
+            }
+
+            // All tool calls within the parallel group must be finished
+            if (activeToolCallIds.size > 0) {
+              const activeCalls = Array.from(activeToolCallIds).join(", ");
+              return throwError(
+                () =>
+                  new AGUIError(
+                    `Cannot send 'PARALLEL_TOOL_CALLS_END' event: Some tool calls are still active: ${activeCalls}. Complete them with 'TOOL_CALL_END' first.`,
+                  ),
+              );
+            }
+
+            // Reset parallel state
+            activeParallelId = undefined;
             return of(event);
           }
 
