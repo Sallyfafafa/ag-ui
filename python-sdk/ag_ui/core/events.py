@@ -26,6 +26,8 @@ class EventType(str, Enum):
     TOOL_CALL_END = "TOOL_CALL_END"
     TOOL_CALL_CHUNK = "TOOL_CALL_CHUNK"
     TOOL_CALL_RESULT = "TOOL_CALL_RESULT"
+    PARALLEL_TOOL_CALLS_START = "PARALLEL_TOOL_CALLS_START"
+    PARALLEL_TOOL_CALLS_END = "PARALLEL_TOOL_CALLS_END"
     THINKING_START = "THINKING_START"
     THINKING_END = "THINKING_END"
     STATE_SNAPSHOT = "STATE_SNAPSHOT"
@@ -148,6 +150,24 @@ class ToolCallResultEvent(BaseEvent):
     content: str
     role: Optional[Literal["tool"]] = None
 
+
+class ParallelToolCallsStartEvent(BaseEvent):
+    """
+    Event indicating the start of parallel tool calls.
+    """
+    type: Literal[EventType.PARALLEL_TOOL_CALLS_START] = EventType.PARALLEL_TOOL_CALLS_START  # pyright: ignore[reportIncompatibleVariableOverride]
+    parallel_id: str
+    tool_call_ids: List[str]
+    parent_message_id: Optional[str] = None
+
+
+class ParallelToolCallsEndEvent(BaseEvent):
+    """
+    Event indicating the end of parallel tool calls.
+    """
+    type: Literal[EventType.PARALLEL_TOOL_CALLS_END] = EventType.PARALLEL_TOOL_CALLS_END  # pyright: ignore[reportIncompatibleVariableOverride]
+    parallel_id: str
+
 class ThinkingStartEvent(BaseEvent):
     """
     Event indicating the start of a thinking step event.
@@ -253,11 +273,18 @@ Event = Annotated[
         TextMessageContentEvent,
         TextMessageEndEvent,
         TextMessageChunkEvent,
+        ThinkingTextMessageStartEvent,
+        ThinkingTextMessageContentEvent,
+        ThinkingTextMessageEndEvent,
         ToolCallStartEvent,
         ToolCallArgsEvent,
         ToolCallEndEvent,
         ToolCallChunkEvent,
         ToolCallResultEvent,
+        ParallelToolCallsStartEvent,
+        ParallelToolCallsEndEvent,
+        ThinkingStartEvent,
+        ThinkingEndEvent,
         StateSnapshotEvent,
         StateDeltaEvent,
         MessagesSnapshotEvent,
